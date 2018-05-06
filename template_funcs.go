@@ -9,14 +9,13 @@ import (
 	"github.com/bogem/gel/pools"
 )
 
-var (
+const (
 	partialsDir   = "partials/"
 	componentsDir = "components/"
 )
 
 type templateFuncs struct {
-	layoutDir string
-	tmpl      *template.Template
+	tmpl *template.Template
 }
 
 func (tf *templateFuncs) builtinFuncs() template.FuncMap {
@@ -27,14 +26,14 @@ func (tf *templateFuncs) builtinFuncs() template.FuncMap {
 }
 
 func (tf *templateFuncs) component(name string, data interface{}) (template.HTML, error) {
-	name = addPrefixIfNeeded(name, componentsDir)
-	name = addPrefixIfNeeded(name, partialsDir)
+	name = addMissingPrefix(name, componentsDir)
+	name = addMissingPrefix(name, partialsDir)
 	return tf.partial(name, data)
 }
 
 func (tf *templateFuncs) partial(name string, data interface{}) (template.HTML, error) {
-	name = addPrefixIfNeeded(name, partialsDir)
-	name = addSuffixIfNeeded(name, ".html")
+	name = addMissingPrefix(name, partialsDir)
+	name = addMissingSuffix(name, ".html")
 	name = path.Clean(name)
 
 	tmpl := tf.tmpl.Lookup(name)
@@ -49,18 +48,18 @@ func (tf *templateFuncs) partial(name string, data interface{}) (template.HTML, 
 		return template.HTML(""), err
 	}
 
-	return template.HTML(buf.String()), nil
+	return template.HTML(strings.TrimSpace(buf.String())), nil
 
 }
 
-func addPrefixIfNeeded(s, prefix string) string {
+func addMissingPrefix(s, prefix string) string {
 	if !strings.HasPrefix(s, prefix) {
 		return prefix + s
 	}
 	return s
 }
 
-func addSuffixIfNeeded(s, suffix string) string {
+func addMissingSuffix(s, suffix string) string {
 	if !strings.HasSuffix(s, suffix) {
 		return s + suffix
 	}

@@ -19,8 +19,7 @@ func ParseLayouts(layoutDir string) (*Layouts, error) {
 	layouts := &Layouts{layoutDir: layoutDir}
 	tmpl := template.New("root")
 	tf := templateFuncs{
-		layoutDir: layoutDir,
-		tmpl:      tmpl,
+		tmpl: tmpl,
 	}
 	layouts.tmpl = tmpl.Funcs(tf.builtinFuncs())
 
@@ -50,7 +49,7 @@ func ParseLayouts(layoutDir string) (*Layouts, error) {
 		if err != nil {
 			return err
 		}
-		if name[0] == '.' {
+		if filepath.Base(name)[0] == '.' {
 			return nil
 		}
 
@@ -68,7 +67,7 @@ func (l *Layouts) SetFuncs(funcs template.FuncMap) {
 	l.tmpl = l.tmpl.Funcs(funcs)
 }
 
-func (l *Layouts) ExecuteLayout(w io.Writer, name string, data interface{}) error {
-	return l.tmpl.ExecuteTemplate(w, name, data)
+func (l *Layouts) ExecuteLayout(w io.Writer, name string, page *Page) error {
+	return l.tmpl.ExecuteTemplate(w, name, page)
 
 }

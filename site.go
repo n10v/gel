@@ -1,35 +1,41 @@
 package gel
 
 import (
-	"html/template"
 	"os"
+	"strings"
 
 	"path/filepath"
+
+	"github.com/bogem/gel/fsutils"
 )
 
 type Site struct {
-	ContentDir string
-	DistDir    string
+	BaseURL         string
+	ContentDir      string
+	DefaultLayout   string
+	DistDir         string
+	LayoutDir       string
+	LayoutStaticDir string
+	StaticDir       string
+	Title           string
+	UglyURLs        bool
 
-	DefaultLayout string
-	LayoutDir     string
-
-	TemplateFuncs template.FuncMap
-
-	layouts   *Layouts
-	pages     []*Page
-	pageUtils *PageUtils
+	layouts *Layouts
+	pages   []*Page
 }
 
-func (s *Site) GetPageUtils() *PageUtils {
-	if s.pageUtils == nil {
-		s.pageUtils = NewPageUtils(s)
+func (s *Site) PagesInDir(dir string) []*Page {
+	pages := []*Page{}
+	for _, page := range s.pages {
+		if strings.HasPrefix(page.SrcPath(), dir) {
+			pages = append(pages, page)
+		}
 	}
-	return s.pageUtils
+	return pages
 }
 
 func (s *Site) ParsePages() error {
-	pages, err := WalkContentDir(s.ContentDir)
+	pages, err := s.WalkContentDir(s.ContentDir)
 	if err != nil {
 		return err
 	}
@@ -40,13 +46,14 @@ func (s *Site) ParsePages() error {
 }
 
 func (s *Site) WriteContent() error {
-	if err := createMissingDir(s.DistDir); err != nil {
+	if err := fsutils.CreateMissingDir(s.DistDir); err != nil {
 		return err
 	}
 
 	for _, page := range s.pages {
-		pageDistPath, err := s.GetPageUtils().ResolveDistPath(page.SourcePath())
-		if err != nil {
+		pageDistPath := filepath.Join(s.DistDir, page.DistPath())
+
+		if err := fsutils.CreateMissingDir(filepath.Dir(pageDistPath)); err != nil {
 			return err
 		}
 
@@ -68,21 +75,20 @@ func (s *Site) WriteContent() error {
 	return nil
 }
 
-func createMissingDir(path string) error {
-	_, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			if err = os.Mkdir(path, 0755); err != nil {
-				return err
-			}
-		} else {
+func (s *Site) CopyStatic() error {
+	for _, staticDir := range []string{s.LayoutStaticDir, s.StaticDir} {
+		if staticDir == "" {
+			continue
+		}
+
+		if err := fsutils.Copy(s.DistDir, staticDir); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func WalkContentDir(contentDir string) ([]*Page, error) {
+func (s *Site) WalkContentDir(contentDir string) ([]*Page, error) {
 	pages := []*Page{}
 
 	err := filepath.Walk(contentDir, func(path string, info os.FileInfo, err error) error {
@@ -105,7 +111,7 @@ func WalkContentDir(contentDir string) ([]*Page, error) {
 			if _, err := f.Read(fileContent); err != nil {
 				return err
 			}
-			page, err := ParsePage(fileContent, path)
+			page, err := ParsePage(fileContent, path, s)
 			if err != nil {
 				return err
 			}
