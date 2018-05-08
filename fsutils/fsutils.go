@@ -61,8 +61,9 @@ func cpFile(dst, src string, srcFI os.FileInfo) error {
 	defer srcFile.Close()
 
 	buf := pools.GetByteSlice(128 * 1024)
-	defer pools.PutByteSlice(buf)
 	_, err = io.CopyBuffer(dstFile, srcFile, buf)
+	pools.PutByteSlice(buf)
+
 	return err
 }
 

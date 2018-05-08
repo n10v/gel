@@ -3,6 +3,7 @@ package gel
 import (
 	"os"
 	"strings"
+	"sync"
 
 	"path/filepath"
 
@@ -50,29 +51,42 @@ func (s *Site) WriteContent() error {
 		return err
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(s.pages))
+	ec := make(chan error, len(s.pages))
+
 	for _, page := range s.pages {
-		pageDistPath := filepath.Join(s.DistDir, page.DistPath())
+		go func() {
+			defer wg.Done()
 
-		if err := fsutils.CreateMissingDir(filepath.Dir(pageDistPath)); err != nil {
-			return err
-		}
+			pageDistPath := filepath.Join(s.DistDir, page.DistPath())
 
-		f, err := os.Create(pageDistPath)
-		if err != nil {
-			return err
-		}
+			if err := fsutils.CreateMissingDir(filepath.Dir(pageDistPath)); err != nil {
+				ec <- err
+				return
+			}
 
-		layout := page.Layout
-		if layout == "" {
-			layout = s.DefaultLayout
-		}
-		err = s.layouts.ExecuteLayout(f, layout, page)
-		if err != nil {
-			return err
-		}
+			f, err := os.Create(pageDistPath)
+			if err != nil {
+				ec <- err
+				return
+			}
+
+			layout := page.Layout
+			if layout == "" {
+				layout = s.DefaultLayout
+			}
+			err = s.layouts.ExecuteLayout(f, layout, page)
+			if err != nil {
+				ec <- err
+				return
+			}
+		}()
 	}
+	wg.Wait()
+	close(ec)
 
-	return nil
+	return <-ec
 }
 
 func (s *Site) CopyStatic() error {
